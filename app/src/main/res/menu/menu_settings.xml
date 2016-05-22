@@ -1,0 +1,30 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:context="com.elvinlabs.parkme.SettingsActivity">
+
+    <item android:id="@+id/action_search"
+        android:icon="@drawable/srch"
+        android:title="aa"
+        android:showAsAction="always" />
+    <item android:id="@+id/action_record"
+        android:icon="@drawable/srch"
+        android:title="aa"
+        android:showAsAction="ifRoom" />
+    <item android:id="@+id/action_save"
+        android:icon="@drawable/srch"
+        android:title="aa"
+        android:showAsAction="ifRoom" />
+    <item android:id="@+id/action_label"
+        android:icon="@drawable/srch"
+        android:title="aa"
+        android:showAsAction="ifRoom" />
+    <item android:id="@+id/action_play"
+        android:icon="@drawable/srch"
+        android:title="aa"
+        android:showAsAction="ifRoom" />
+    <item android:id="@+id/action_settings"
+        android:title="aa"
+        android:showAsAction="never" />
+
+</menu>
