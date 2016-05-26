@@ -6,6 +6,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
 import android.widget.TextView;
 import android.content.Context;
 import android.widget.Toast;
@@ -34,17 +35,28 @@ public class MapActivity extends ActionBarActivity {
     private GoogleMap mMap;
     private Socket mSocket;
     private Toast toast;
-//    private JSONArray obj = new JSONArray();
+    private boolean isSataliteMode = false;
+    private String filtering = "both";
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_map);
 
+        Bundle extras = getIntent().getExtras();
+        try{
+            isSataliteMode = extras.getBoolean("isSalatite");
+            filtering = extras.getString("filter");
+            System.out.println(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"+ extras.getString("filter"));
+        }catch(NullPointerException e){
+            System.out.println(e);
+        }
+
         final LocationManager manager = (LocationManager) getSystemService( Context.LOCATION_SERVICE );
 
+        //if the GPS is not activated this method trigured
         if ( !manager.isProviderEnabled( LocationManager.GPS_PROVIDER ) ) {
             buildAlertMessageNoGps();
-
         }
 
         ParkMeApplication app = (ParkMeApplication) getApplication();
@@ -54,16 +66,27 @@ public class MapActivity extends ActionBarActivity {
         Context context = getApplicationContext();
         CharSequence text = "CONNECTING TO THE SERVER ...";
         int duration = Toast.LENGTH_LONG;
-
         toast = Toast.makeText(context, text, duration);
         toast.show();
 
+        // connect to the server through socket.io
         mSocket.on(Socket.EVENT_CONNECT, onConnect);
         mSocket.on("new-client", onNewMessage);
+        mSocket.on("node-mcu", onNewMessage);
         mSocket.connect();
 
         setUpMapIfNeeded();
     }
+
+    public void onButtonClicked(View v){
+        mSocket.on(Socket.EVENT_CONNECT, onConnect);
+        mSocket.on("new-client", onNewMessage);
+        mSocket.on("node-mcu", onNewMessage);
+        mSocket.connect();
+
+        setUpMapIfNeeded();
+    }
+
 
     private void buildAlertMessageNoGps() {
         final AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -81,44 +104,88 @@ public class MapActivity extends ActionBarActivity {
                 });
         final AlertDialog alert = builder.create();
         alert.show();
-
     }
+
+
+
+    /////////////////////////////////////////////////////////////////////////////////////////
+    private Emitter.Listener onMessage = new Emitter.Listener() {
+
+        @Override
+        public void call(final Object... args) {
+            final JSONArray obj = (JSONArray)args[0];
+
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    System.out.println(" >>>>>>>>>>>> new-client --- "+ obj.length());
+                    Context context = getApplicationContext();
+                    CharSequence text = "new-client - "+ obj.length();
+                    int duration = Toast.LENGTH_LONG;
+                    toast = Toast.makeText(context, text, duration);
+                    toast.show();
+                }
+            });
+        }
+
+    };
+
+    private Emitter.Listener onMessageMCU = new Emitter.Listener() {
+
+        @Override
+        public void call(final Object... args) {
+            final JSONArray obj = (JSONArray)args[0];
+
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    System.out.println(" >>>>>>>>>>>> MCU  --- "+ obj.length());
+                    Context context = getApplicationContext();
+                    CharSequence text = "MCU - "+ obj.length();
+                    int duration = Toast.LENGTH_LONG;
+                    toast = Toast.makeText(context, text, duration);
+                    toast.show();
+                }
+            });
+        }
+
+    };
+    ///////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
 
     private Emitter.Listener onNewMessage = new Emitter.Listener() {
 
         @Override
         public void call(final Object... args) {
-
-
-//            try{
             final JSONArray obj = (JSONArray)args[0];
-//            }catch(Exception e){
-//                System.out.println(e);
-//            }
 
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    toast.cancel();
+                    mMap.clear();
                     for(int i=0; i<obj.length(); i++){
                         try{
 
                             System.out.println(" >>>>>>>>>>>> socket.io connceted --- "+ obj.getJSONObject(i).toString());
 
-                            if(obj.getJSONObject(i).getInt("available")==3) {
-                                mMap.addMarker(new MarkerOptions()
-                                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.three))
-                                        .anchor(0.0f, 0.0f)
-                                        .title(obj.getJSONObject(i).getString("name"))
-                                        .snippet("Available parking slots - " + obj.getJSONObject(i).getInt("available"))
-                                        .position(new LatLng(obj.getJSONObject(i).getDouble("lat"), obj.getJSONObject(i).getDouble("lng"))));
-                            }else if(obj.getJSONObject(i).getInt("available")==2){
-                                mMap.addMarker(new MarkerOptions()
-                                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.two))
-                                        .anchor(0.0f, 0.0f)
-                                        .title(obj.getJSONObject(i).getString("name"))
-                                        .snippet("Available parking slots - " + obj.getJSONObject(i).getInt("available"))
-                                        .position(new LatLng(obj.getJSONObject(i).getDouble("lat"), obj.getJSONObject(i).getDouble("lng"))));
+                            if(filtering.equals("indoor") && obj.getJSONObject(i).getString("prkType").equals("Indoor")){
+
+                                createMarker(obj.getJSONObject(i).getDouble("lat"), obj.getJSONObject(i).getDouble("lng"), obj.getJSONObject(i).getString("name"),
+                                        "Available parking slots - " + obj.getJSONObject(i).getInt("availableSlots") + "/"+obj.getJSONObject(i).getInt("numOfSlots"),obj.getJSONObject(i).getString("prkType"),obj.getJSONObject(i).getInt("availableSlots"));
+
+                            }else if(filtering.equals("outdoor") && obj.getJSONObject(i).getString("prkType").equals("Outdoor")){
+
+                                createMarker(obj.getJSONObject(i).getDouble("lat"), obj.getJSONObject(i).getDouble("lng"), obj.getJSONObject(i).getString("name"),
+                                        "Available parking slots - " + obj.getJSONObject(i).getInt("availableSlots") + "/"+obj.getJSONObject(i).getInt("numOfSlots"),obj.getJSONObject(i).getString("prkType"),obj.getJSONObject(i).getInt("availableSlots"));
+
+                            }else if(filtering.equals("both")){
+
+                                createMarker(obj.getJSONObject(i).getDouble("lat"), obj.getJSONObject(i).getDouble("lng"), obj.getJSONObject(i).getString("name"),
+                                        "Available parking slots - " + obj.getJSONObject(i).getInt("availableSlots") + "/"+obj.getJSONObject(i).getInt("numOfSlots"),obj.getJSONObject(i).getString("prkType"),obj.getJSONObject(i).getInt("availableSlots"));
+
                             }
 
                         } catch (JSONException e) {
@@ -131,10 +198,72 @@ public class MapActivity extends ActionBarActivity {
 
     };
 
+    protected void createMarker(double latitude, double longitude, String title, String snippet, String prkType, int avaliable) {
+
+        if(avaliable > 5){
+
+            if(prkType.equals("Indoor")){
+                mMap.addMarker(new MarkerOptions()
+                        .position(new LatLng(latitude, longitude))
+                        .anchor(0.5f, 0.5f)
+                        .title(title)
+                        .snippet(snippet)
+                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.in5p)));
+            }else{
+                mMap.addMarker(new MarkerOptions()
+                        .position(new LatLng(latitude, longitude))
+                        .anchor(0.5f, 0.5f)
+                        .title(title)
+                        .snippet(snippet)
+                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.out5m)));
+            }
+
+        }else if(avaliable<5 && avaliable>2){
+
+            if(prkType.equals("Indoor")){
+                mMap.addMarker(new MarkerOptions()
+                        .position(new LatLng(latitude, longitude))
+                        .anchor(0.5f, 0.5f)
+                        .title(title)
+                        .snippet(snippet)
+                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.in2p)));
+            }else{
+                mMap.addMarker(new MarkerOptions()
+                        .position(new LatLng(latitude, longitude))
+                        .anchor(0.5f, 0.5f)
+                        .title(title)
+                        .snippet(snippet)
+                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.out2p)));
+            }
+
+        }else{
+
+            if(prkType.equals("Indoor")){
+                mMap.addMarker(new MarkerOptions()
+                        .position(new LatLng(latitude, longitude))
+                        .anchor(0.5f, 0.5f)
+                        .title(title)
+                        .snippet(snippet)
+                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.in2m)));
+            }else{
+                mMap.addMarker(new MarkerOptions()
+                        .position(new LatLng(latitude, longitude))
+                        .anchor(0.5f, 0.5f)
+                        .title(title)
+                        .snippet(snippet)
+                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.out2m)));
+            }
+
+        }
+
+
+
+    }
+
     private Emitter.Listener onConnect = new Emitter.Listener() {
         @Override
         public void call(final Object... args) {
-            System.out.println(" >>>>>>>>>>>> socket.io connceted --- "+ args.length);
+            System.out.println(" >>>>>>>>>>>> socket.io connceted --- ");
         }
     };
 
@@ -163,6 +292,8 @@ public class MapActivity extends ActionBarActivity {
 
         if (id == R.id.action_settings) {
             Intent i = new Intent(MapActivity.this, SettingsActivity.class);
+            i.putExtra("isSalatite", isSataliteMode);
+            i.putExtra("filter", filtering);
             startActivity(i);
             finish();
             return true;
@@ -191,22 +322,20 @@ public class MapActivity extends ActionBarActivity {
     }
 
     private void setUpMap() {
-        LatLng sydney = new LatLng(7.2566, 80.5966);
-
-        mMap.setMyLocationEnabled(true);
         mMap.moveCamera(CameraUpdateFactory.zoomTo(14));
+
+        if (isSataliteMode == true){
+            mMap.setMapType(GoogleMap.MAP_TYPE_SATELLITE);
+        }
 
         mMap = ((SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map)).getMap();
         mMap.setMyLocationEnabled(true);
-
-            mMap.setOnMyLocationChangeListener(new GoogleMap.OnMyLocationChangeListener() {
-                @Override
-                public void onMyLocationChange(Location arg0) {
-                    mMap.moveCamera(CameraUpdateFactory.newLatLng(new LatLng(arg0.getLatitude(), arg0.getLongitude())));
-                }
-            });
-
-
+        mMap.setOnMyLocationChangeListener(new GoogleMap.OnMyLocationChangeListener() {
+            @Override
+            public void onMyLocationChange(Location arg0) {
+                mMap.moveCamera(CameraUpdateFactory.newLatLng(new LatLng(arg0.getLatitude(), arg0.getLongitude())));
+            }
+        });
     }
 
 }

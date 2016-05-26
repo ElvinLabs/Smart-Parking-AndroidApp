@@ -3,4 +3,5 @@
     <color name="black_overlay">#66000000</color>
     <color name="ColorPrimary">#007aff</color>
     <color name="ColorPrimaryDark">#007bff</color>
+    <color name="background_cus">#ffffff</color>
 </resources>
